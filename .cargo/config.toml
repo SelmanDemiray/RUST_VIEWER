@@ -1,0 +1,12 @@
+# Configure build behavior on Windows to help avoid "Access is denied" errors
+[target.'cfg(windows)']
+# Remove the problematic build-override that was causing the warning
+rustflags = ["-C", "link-arg=/NOLOGO"]
+
+# Use the "z7" debug info format on Windows which tends to have fewer file locking issues
+[profile.dev.package."*"]
+debug = "line-tables-only" 
+
+[build]
+# Limit parallel jobs on Windows to reduce chance of access conflicts
+jobs = 1
