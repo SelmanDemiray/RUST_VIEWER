@@ -7,6 +7,7 @@ mod simple_dialog;  // New module for our simple file dialog
 use eframe::egui;
 use project::Project;
 use simple_dialog::SimpleFileDialog;
+use visualization::VisualizationState; // Import VisualizationState
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -27,6 +28,7 @@ struct RustVisualizer {
     view_mode: ViewMode,
     file_dialog: SimpleFileDialog,  // New field for our custom file dialog
     show_dialog: bool,  // Track dialog visibility
+    visualization_state: VisualizationState, // Add visualization state
 }
 
 enum ViewMode {
@@ -42,6 +44,7 @@ impl Default for RustVisualizer {
             view_mode: ViewMode::Visualization,
             file_dialog: SimpleFileDialog::default(),
             show_dialog: false,
+            visualization_state: VisualizationState::default(), // Initialize visualization state
         }
     }
 }
@@ -101,7 +104,7 @@ impl eframe::App for RustVisualizer {
         egui::CentralPanel::default().show(ctx, |ui| {
             match self.view_mode {
                 ViewMode::Visualization => {
-                    visualization::render_visualization(ui, &self.project);
+                    visualization::render_visualization(ui, &self.project, &mut self.visualization_state);
                 },
                 ViewMode::Editor => {
                     if let Some(file_path) = &self.selected_file {
