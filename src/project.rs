@@ -1,18 +1,22 @@
 use std::collections::HashMap;
 use std::fs;
 use walkdir::WalkDir;
-use crate::parser::{parse_file, CodeElement, Relationship};
+use crate::parser::{parse_file, ElementType, RelationshipType};
 
 #[derive(Default)]
 pub struct Project {
     pub files: Vec<String>,
-    pub file_contents: HashMap<String, String>,
-    pub elements: Vec<CodeElement>,
+    pub elements: Vec<Element>,
     pub relationships: Vec<Relationship>,
     pub project_path: Option<String>,
+    pub file_contents: HashMap<String, String>,
 }
 
 impl Project {
+    pub fn get_file_content(&self, file_path: &str) -> Option<&str> {
+        self.file_contents.get(file_path).map(|s| s.as_str())
+    }
+    
     pub fn load_project(&mut self, path: &str) {
         self.project_path = Some(path.to_string());
         self.files.clear();
@@ -38,14 +42,42 @@ impl Project {
                 
                 // Parse the file to extract code elements and relationships
                 if let Ok((elements, relationships)) = parse_file(&normalized_path, &content) {
-                    self.elements.extend(elements);
-                    self.relationships.extend(relationships);
+                    // Convert parser::CodeElement to project::Element
+                    for element in elements {
+                        self.elements.push(Element {
+                            id: element.id,
+                            name: element.name,
+                            file_path: element.file_path,
+                            element_type: element.element_type,
+                        });
+                    }
+                    
+                    // Convert parser::Relationship to project::Relationship
+                    for rel in relationships {
+                        self.relationships.push(Relationship {
+                            source_id: rel.source_id,
+                            target_id: rel.target_id,
+                            relationship_type: rel.relationship_type,
+                        });
+                    }
                 }
             }
         }
     }
+}
 
-    pub fn get_file_content(&self, file_path: &str) -> Option<&String> {
-        self.file_contents.get(file_path)
-    }
+#[derive(Debug, Clone)]
+pub struct Element {
+    pub id: String,
+    pub name: String,
+    pub file_path: String,
+    #[allow(dead_code)]
+    pub element_type: ElementType,
+}
+
+#[derive(Debug, Clone)]
+pub struct Relationship {
+    pub source_id: String,
+    pub target_id: String,
+    pub relationship_type: RelationshipType,
 }
