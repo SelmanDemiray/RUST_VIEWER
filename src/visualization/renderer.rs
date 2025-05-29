@@ -19,18 +19,22 @@ impl VisualizationRenderer {
     #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
-            state: VisualizationState::default(),
+            state: VisualizationState::new(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn render(&self, ui: &mut egui::Ui, state: &VisualizationState, _nodes: &[Node], _edges: &[Edge]) {
+    pub fn render(&mut self, ui: &mut egui::Ui, state: &VisualizationState, _nodes: &[Node], _edges: &[Edge]) {
         // Create a simple project from nodes and edges for backward compatibility
         let project = Project::default();
         // Use nodes and edges to populate the project
         // For a real implementation, you'd need to convert between these formats
         
-        render(ui, &project, &mut state.clone());
+        let mut state_copy = state.clone();
+        render(ui, &project, &mut state_copy, _nodes, _edges);
+        
+        // Update the internal state with any changes
+        self.state = state_copy;
     }
 }
 
@@ -53,7 +57,7 @@ pub struct Edge {
 }
 
 #[allow(dead_code)]
-pub fn render(ui: &mut egui::Ui, project: &Project, state: &mut VisualizationState) {
+pub fn render(ui: &mut egui::Ui, project: &Project, state: &mut VisualizationState, _nodes: &[Node], _edges: &[Edge]) {
     // Set some default values if they're not set
     if state.zoom == 0.0 {
         state.zoom = 1.0;

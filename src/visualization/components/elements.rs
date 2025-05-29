@@ -9,145 +9,140 @@ use crate::{
 
 pub fn draw(
     ui: &mut egui::Ui,
-    _project: &Project,
+    project: &Project,
     state: &mut VisualizationState,
     element_positions: &HashMap<String, egui::Pos2>,
     response: &egui::Response,
 ) {
-    // Get the label visibility setting once to ensure the field is read
-    let should_show_labels = state.show_labels;
+    let painter = ui.painter();
     
-    // Draw files
-    for (file_path, pos) in element_positions {
-        let file_name = file_path.split('/').last().unwrap_or(file_path);
-        let file_size = egui::vec2(120.0, 40.0) * state.zoom;
-        let file_rect = egui::Rect::from_center_size(*pos, file_size);
-        
-        // Check if element was clicked
-        if response.clicked() {
-            if let Some(hover_pos) = response.hover_pos() {
-                if file_rect.contains(hover_pos) {
-                    // Select or deselect this element
-                    if state.selected_element.as_ref().map_or(false, |id| id == file_path) {
-                        state.selected_element = None;
-                    } else {
-                        state.selected_element = Some(file_path.clone());
-                    }
-                }
+    // Draw elements
+    for element in &project.elements {
+        if let Some(pos) = element_positions.get(&element.id) {
+            let is_selected = state.selected_element.as_ref() == Some(&element.id);
+            let is_hovered = response.hovered() && 
+                response.hover_pos().map_or(false, |mouse_pos| {
+                    (mouse_pos - *pos).length() < 20.0
+                });
+            
+            // Filter elements based on search text
+            let should_show = state.filter_text.is_empty() || 
+                element.name.to_lowercase().contains(&state.filter_text.to_lowercase()) ||
+                element.file_path.to_lowercase().contains(&state.filter_text.to_lowercase());
+            
+            if !should_show {
+                continue;
             }
-        }
-        
-        // Get the painter for drawing the elements
-        let painter = ui.painter();
-        
-        // Draw shadow for 3D effect
-        painter.rect_filled(
-            file_rect.translate(egui::vec2(3.0, 3.0)),
-            5.0,
-            egui::Color32::from_rgba_unmultiplied(0, 0, 0, 100),
-        );
-        
-        // Check if this is the selected element
-        let is_selected = state.selected_element.as_ref().map_or(false, |id| file_path.contains(id));
-        
-        // Draw file background with different color if selected
-        painter.rect_filled(
-            file_rect,
-            5.0 * state.zoom,
-            if is_selected {
-                egui::Color32::from_rgb(100, 100, 180)
+            
+            // Calculate element color based on type
+            let base_color = match element.element_type {
+                ElementType::Function => egui::Color32::from_rgb(100, 150, 255),
+                ElementType::Struct => egui::Color32::from_rgb(255, 150, 100),
+                ElementType::Enum => egui::Color32::from_rgb(150, 255, 100),
+                ElementType::Trait => egui::Color32::from_rgb(255, 100, 150),
+                ElementType::Impl => egui::Color32::from_rgb(150, 100, 255),
+                ElementType::Module => egui::Color32::from_rgb(200, 200, 100),
+            };
+            
+            let color = if is_selected {
+                egui::Color32::WHITE
+            } else if is_hovered {
+                base_color.linear_multiply(1.3)
             } else {
-                egui::Color32::from_rgb(70, 70, 120)
-            },
-        );
-        
-        // Draw file name if labels are enabled or this is the selected element
-        if should_show_labels || is_selected {
-            painter.text(
-                file_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                file_name,
-                egui::FontId::proportional(14.0 * state.zoom),
-                egui::Color32::WHITE,
-            );
+                base_color
+            };
+            
+            // Calculate size based on zoom and selection
+            let base_size = match element.element_type {
+                ElementType::Module => 15.0,
+                ElementType::Struct | ElementType::Enum | ElementType::Trait => 12.0,
+                ElementType::Function | ElementType::Impl => 8.0,
+            };
+            
+            let size = base_size * state.zoom * if is_selected { 1.5 } else { 1.0 };
+            
+            // Draw element as a circle
+            painter.circle_filled(*pos, size, color);
+            
+            // Draw border for selected/hovered elements
+            if is_selected || is_hovered {
+                painter.circle_stroke(
+                    *pos,
+                    size + 2.0,
+                    egui::Stroke::new(2.0, egui::Color32::WHITE)
+                );
+            }
+            
+            // Draw labels if enabled and zoom is sufficient
+            draw_element_label(painter, element, *pos, state.should_draw_labels(), is_selected, is_hovered, state.zoom);
+            
+            // Handle clicks for selection
+            if response.clicked() && is_hovered {
+                state.selected_element = Some(element.id.clone());
+            }
         }
     }
 }
 
-#[allow(dead_code)]
-pub fn draw_elements(_ui: &mut egui::Ui, painter: &egui::Painter, project: &Project, state: &mut VisualizationState) {
-    let zoom = state.zoom;
-    let pan_offset = state.pan_offset;
-    
-    // Draw code elements
-    for (i, element) in project.elements.iter().enumerate() {
-        // Simplified positioning - in a real app you'd use a proper layout algorithm
-        let x = 100.0 + (i as f32 % 5.0) * 200.0;
-        let y = 100.0 + (i as f32 / 5.0) * 150.0;
-        
-        let element_pos = egui::pos2(x * zoom + pan_offset.x, y * zoom + pan_offset.y);
-        let element_size = egui::vec2(180.0 * zoom, 80.0 * zoom);
-        
-        let element_rect = egui::Rect::from_min_size(element_pos, element_size);
-        
-        // Determine color based on element type
-        let fill_color = match element.element_type {
-            ElementType::Function => egui::Color32::from_rgba_unmultiplied(60, 60, 120, 200),
-            ElementType::Module => egui::Color32::from_rgba_unmultiplied(60, 120, 60, 200),
-            ElementType::Struct => egui::Color32::from_rgba_unmultiplied(120, 60, 60, 200),
-            ElementType::Enum => egui::Color32::from_rgba_unmultiplied(120, 60, 120, 200),
-            ElementType::Trait => egui::Color32::from_rgba_unmultiplied(60, 120, 120, 200),
-            ElementType::Impl => egui::Color32::from_rgba_unmultiplied(120, 120, 60, 200),
-        };
-        
-        // Check if this element is selected
-        let is_selected = state.selected_element.as_ref().map_or(false, |id| id == &element.id);
-        let stroke = if is_selected {
-            egui::Stroke::new(2.0, egui::Color32::WHITE)
-        } else {
-            egui::Stroke::new(1.0, egui::Color32::from_gray(180))
-        };
-        
-        // Draw the element rectangle
-        painter.rect(element_rect, 5.0, fill_color, stroke);
-        
-        // Draw the element name
-        let font_size = 16.0 * zoom;
-        let text_pos = element_rect.min + egui::vec2(10.0 * zoom, 10.0 * zoom);
-        painter.text(
-            text_pos, 
-            egui::Align2::LEFT_TOP, 
-            &element.name, 
-            egui::FontId::proportional(font_size),
-            egui::Color32::WHITE,
-        );
-        
-        // Draw the element type
-        let type_text = format!("{:?}", element.element_type);
-        let type_pos = element_rect.min + egui::vec2(10.0 * zoom, 30.0 * zoom);
-        painter.text(
-            type_pos, 
-            egui::Align2::LEFT_TOP, 
-            &type_text, 
-            egui::FontId::proportional(font_size * 0.8),
-            egui::Color32::from_gray(200),
-        );
-        
-        // Draw the file path (shortened)
-        let path_parts: Vec<_> = element.file_path.split('/').collect();
-        let short_path = if path_parts.len() > 2 {
-            format!(".../{}", path_parts.last().unwrap_or(&""))
-        } else {
-            element.file_path.clone()
-        };
-        
-        let path_pos = element_rect.min + egui::vec2(10.0 * zoom, 50.0 * zoom);
-        painter.text(
-            path_pos, 
-            egui::Align2::LEFT_TOP, 
-            &short_path, 
-            egui::FontId::proportional(font_size * 0.7),
-            egui::Color32::from_gray(180),
-        );
+fn draw_element_label(
+    painter: &egui::Painter,
+    element: &crate::project::Element,
+    pos: egui::Pos2,
+    should_show_labels: bool,
+    is_selected: bool,
+    is_hovered: bool,
+    zoom: f32,
+) {
+    if should_show_labels || is_selected || is_hovered {
+        if zoom > 0.5 {
+            let label_offset = egui::vec2(0.0, -25.0 * zoom);
+            let label_pos = pos + label_offset;
+            
+            // Draw background for better readability
+            let text_size = 12.0 * zoom.min(1.5);
+            let font_id = egui::FontId::proportional(text_size);
+            
+            // Calculate text size for background
+            let galley = painter.layout_no_wrap(
+                element.name.clone(),
+                font_id.clone(),
+                egui::Color32::WHITE,
+            );
+            
+            let text_rect = egui::Rect::from_center_size(
+                label_pos,
+                galley.size() + egui::vec2(4.0, 2.0),
+            );
+            
+            // Draw background
+            painter.rect_filled(
+                text_rect,
+                2.0,
+                egui::Color32::from_rgba_unmultiplied(0, 0, 0, 180),
+            );
+            
+            // Draw text
+            painter.text(
+                label_pos,
+                egui::Align2::CENTER_CENTER,
+                &element.name,
+                font_id,
+                egui::Color32::WHITE,
+            );
+            
+            // File path (if selected)
+            if is_selected {
+                let file_label_pos = pos + egui::vec2(0.0, 25.0 * zoom);
+                let file_font_id = egui::FontId::proportional(10.0 * zoom.min(1.2));
+                
+                painter.text(
+                    file_label_pos,
+                    egui::Align2::CENTER_CENTER,
+                    &element.file_path,
+                    file_font_id,
+                    egui::Color32::from_gray(180),
+                );
+            }
+        }
     }
 }

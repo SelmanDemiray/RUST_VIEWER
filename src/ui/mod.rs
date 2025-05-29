@@ -1,3 +1,7 @@
+pub mod top_panel;
+pub mod side_panel;
+pub mod central_panel;
+
 use eframe::egui;
 
 // Helper function to create consistent section headings

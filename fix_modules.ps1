@@ -121,3 +121,53 @@ Write-Host "Run: cargo build --release" -ForegroundColor Yellow
 if ($Auto) {
     Write-Host "Auto-mode summary: Processed all modules with default choice: $DefaultChoice" -ForegroundColor Cyan
 }
+
+# PowerShell script to fix common Rust module issues
+
+Write-Host "Fixing Rust module structure..." -ForegroundColor Green
+
+# Remove conflicting editor.rs file if it exists
+$editorFile = "src\editor.rs"
+if (Test-Path $editorFile) {
+    $content = Get-Content $editorFile -Raw
+    if ([string]::IsNullOrWhiteSpace($content) -or $content.Trim() -eq "// This file should be deleted - content moved to src\editor\mod.rs") {
+        Write-Host "Removing empty/conflicting editor.rs file..." -ForegroundColor Yellow
+        Remove-Item $editorFile -Force
+        Write-Host "Removed $editorFile" -ForegroundColor Green
+    } else {
+        Write-Host "Warning: $editorFile contains content. Please review manually." -ForegroundColor Red
+    }
+}
+
+# Check for other potential conflicts
+$conflicts = @()
+
+# Check for mod.rs vs .rs conflicts
+$modules = @("parser", "project", "dialog", "simple_dialog", "visualization", "ui", "app")
+foreach ($module in $modules) {
+    $modFile = "src\$module.rs"
+    $modDir = "src\$module\mod.rs"
+    
+    if ((Test-Path $modFile) -and (Test-Path $modDir)) {
+        $conflicts += "$module (both $modFile and $modDir exist)"
+    }
+}
+
+if ($conflicts.Count -gt 0) {
+    Write-Host "Found potential module conflicts:" -ForegroundColor Red
+    foreach ($conflict in $conflicts) {
+        Write-Host "  - $conflict" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "No module conflicts found." -ForegroundColor Green
+}
+
+# Run cargo check to verify
+Write-Host "Running cargo check..." -ForegroundColor Blue
+cargo check
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Module structure fixed successfully!" -ForegroundColor Green
+} else {
+    Write-Host "There are still compilation errors. Please check the output above." -ForegroundColor Red
+}

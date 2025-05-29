@@ -1,40 +1,26 @@
 [package]
-name = "rust_code_visualizer"
+name = "rust-code-visualizer"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.81.0"
 
 [dependencies]
-# Use specific older versions that are compatible with Rust 1.81.0
-eframe = { version = "=0.21.0", default-features = false, features = ["default_fonts", "glow"] }
-# Update syn to a version that resolves the dependency conflicts
-syn = { version = "^2.0.31", features = ["full", "parsing", "extra-traits"] }
-quote = "=1.0.28"
-# Update proc-macro2 to be compatible with syn 2.0.31
-proc-macro2 = "^1.0.62"  # Changed from "=1.0.56" to be compatible with syn
-walkdir = "=2.3.3"
-petgraph = "=0.6.3"
-syntax-tree = "=0.3.2"
+eframe = "0.21.0"
+egui = "0.21.0"
+serde = { version = "1.0", features = ["derive"] }
+walkdir = "2.3"
+syn = { version = "2.0", features = ["full", "parsing"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+rand = "0.8"
 
-# Added explicit URL-related dependencies with older versions that don't require ICU
-url = "=2.2.2"
-idna = "=0.2.3"
+[dependencies.windows]
+version = "0.42"
+features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+]
 
-# Explicitly add parking_lot and parking_lot_core with specific versions
-parking_lot = "=0.12.1"
-parking_lot_core = "=0.9.8"  # Use a slightly older version that might be more compatible
-
-# Explicitly exclude any dependencies that might pull in ICU packages
-[package.metadata.cargo-machete]
-ignored = ["idna", "zerovec", "icu_collections", "icu_normalizer"]
-
-[profile.release]
-opt-level = 2  # Less aggressive optimization to avoid issues
-lto = false    # Disable link-time optimization to avoid complex dependency issues
-codegen-units = 16  # More codegen units for faster compile time
-# Add this to help with Windows permission issues
-debug = 0     # Don't include debug symbols to reduce file sizes
-
-# This helps with resolving dependencies
-[workspace]
-resolver = "2"
+[[bin]]
+name = "rust_viewer"
+path = "src/main.rs"

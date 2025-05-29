@@ -131,6 +131,38 @@ foreach ($pattern in $tempPatterns) {
 
 Write-Host "Cleanup complete!" -ForegroundColor Green
 
+# Remove any conflicting editor module files
+if (Test-Path "src\editor\mod.rs") {
+    Remove-Item "src\editor\mod.rs" -Force
+    Write-Host "Removed conflicting src\editor\mod.rs"
+}
+
+if (Test-Path "src\editor" -PathType Container) {
+    $editorDir = Get-ChildItem "src\editor" -ErrorAction SilentlyContinue
+    if ($editorDir.Count -eq 0) {
+        Remove-Item "src\editor" -Force
+        Write-Host "Removed empty src\editor directory"
+    }
+}
+
+# Remove the conflicting editor.rs file
+if (Test-Path "src\editor.rs") {
+    Remove-Item "src\editor.rs" -Force
+    Write-Host "Removed conflicting src\editor.rs file"
+} else {
+    Write-Host "No conflicting editor.rs file found"
+}
+
+# Clean up any build artifacts that might be causing issues
+if (Test-Path "target") {
+    Write-Host "Cleaning build artifacts..."
+    cargo clean
+} else {
+    Write-Host "No target directory found"
+}
+
+Write-Host "Cleanup completed!" -ForegroundColor Green
+
 # Print summary if in Auto mode
 if ($Auto) {
     Write-Host "`nCleanup Summary:" -ForegroundColor Cyan
@@ -154,3 +186,69 @@ if ($Auto) {
 }
 
 Write-Host "You may still need to update imports if you deleted any files." -ForegroundColor Cyan
+
+# Clean up build artifacts and reset project
+
+Write-Host "Cleaning up Rust project..." -ForegroundColor Green
+
+# Remove target directory
+if (Test-Path "target") {
+    Write-Host "Removing target directory..." -ForegroundColor Yellow
+    Remove-Item "target" -Recurse -Force
+}
+
+# Remove Cargo.lock (it will be regenerated)
+if (Test-Path "Cargo.lock") {
+    Write-Host "Removing Cargo.lock..." -ForegroundColor Yellow
+    Remove-Item "Cargo.lock" -Force
+}
+
+# Remove any backup files
+Get-ChildItem -Recurse -Filter "*.rs.bk" | Remove-Item -Force
+Get-ChildItem -Recurse -Filter "*~" | Remove-Item -Force
+
+Write-Host "Cleanup complete!" -ForegroundColor Green
+Write-Host "Run 'cargo build' to rebuild the project." -ForegroundColor Cyan
+
+# PowerShell script to clean up build artifacts and temporary files
+
+Write-Host "Cleaning up Rust project..." -ForegroundColor Green
+
+# Clean Cargo build artifacts
+if (Test-Path "target") {
+    Write-Host "Removing target directory..." -ForegroundColor Yellow
+    Remove-Item "target" -Recurse -Force
+    Write-Host "Removed target directory" -ForegroundColor Green
+}
+
+# Clean Cargo lock file if needed (optional)
+if ($args -contains "--clean-lock") {
+    if (Test-Path "Cargo.lock") {
+        Write-Host "Removing Cargo.lock..." -ForegroundColor Yellow
+        Remove-Item "Cargo.lock" -Force
+        Write-Host "Removed Cargo.lock" -ForegroundColor Green
+    }
+}
+
+# Remove any backup files
+$backupFiles = Get-ChildItem -Recurse -Name "*.rs.bak", "*.toml.bak", "*.orig"
+if ($backupFiles.Count -gt 0) {
+    Write-Host "Removing backup files..." -ForegroundColor Yellow
+    foreach ($file in $backupFiles) {
+        Remove-Item $file -Force
+        Write-Host "Removed $file" -ForegroundColor Green
+    }
+}
+
+# Remove any temporary editor files
+$tempFiles = Get-ChildItem -Recurse -Name "*~", "*.tmp", "*.swp"
+if ($tempFiles.Count -gt 0) {
+    Write-Host "Removing temporary files..." -ForegroundColor Yellow
+    foreach ($file in $tempFiles) {
+        Remove-Item $file -Force
+        Write-Host "Removed $file" -ForegroundColor Green
+    }
+}
+
+Write-Host "Cleanup completed!" -ForegroundColor Green
+Write-Host "You can now run: cargo build --release" -ForegroundColor Blue

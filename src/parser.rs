@@ -171,8 +171,8 @@ fn process_impl(file_path: &str, impl_item: &ItemImpl, elements: &mut Vec<CodeEl
         
         // Also try to find the implemented type
         let self_ty = &impl_item.self_ty;
-        // Try to extract the type name from the implementation
-        let type_name = format!("{:?}", self_ty);
+        // Extract type name without Debug formatting
+        let type_name = extract_type_name(self_ty);
         
         // Create a relationship between the impl and the struct/type it's implementing for
         // This is a simplification - proper path resolution would be better
@@ -188,7 +188,7 @@ fn process_impl(file_path: &str, impl_item: &ItemImpl, elements: &mut Vec<CodeEl
     } else {
         // This is an inherent implementation (impl Type)
         let self_ty = &impl_item.self_ty;
-        let type_name = format!("{:?}", self_ty);
+        let type_name = extract_type_name(self_ty);
         
         // Try to create a relationship with the struct/type
         let target_id = format!("{}::{}", file_path, type_name.replace(' ', ""));
@@ -230,6 +230,17 @@ fn process_impl(file_path: &str, impl_item: &ItemImpl, elements: &mut Vec<CodeEl
             // Other impl items can be processed here
             _ => {}
         }
+    }
+}
+
+fn extract_type_name(ty: &syn::Type) -> String {
+    match ty {
+        syn::Type::Path(type_path) => {
+            type_path.path.segments.last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_else(|| "Unknown".to_string())
+        },
+        _ => "Unknown".to_string(),
     }
 }
 
