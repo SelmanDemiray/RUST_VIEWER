@@ -1,4 +1,4 @@
-use syn::{parse_file as syn_parse_file, Item, ItemFn, ItemStruct, ItemEnum, ItemTrait, ItemImpl};
+use syn::{parse_file as syn_parse_file, Item, ItemFn, ItemStruct, ItemEnum, ItemTrait, ItemImpl, ItemUse};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]  // Allow unused fields for future development
@@ -28,7 +28,7 @@ pub struct Relationship {
     pub relationship_type: RelationshipType,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 pub enum RelationshipType {
     #[allow(dead_code)]
     Calls,
@@ -54,6 +54,9 @@ pub fn parse_file(file_path: &str, content: &str) -> Result<(Vec<CodeElement>, V
 fn process_items(file_path: &str, items: &[Item], elements: &mut Vec<CodeElement>, relationships: &mut Vec<Relationship>) {
     for item in items {
         match item {
+            Item::Use(use_item) => {
+                process_use_statement(file_path, use_item, relationships);
+            },
             Item::Fn(func) => {
                 process_function(file_path, func, elements, relationships);
             },
@@ -67,7 +70,7 @@ fn process_items(file_path: &str, items: &[Item], elements: &mut Vec<CodeElement
                         name: mod_name,
                         element_type: ElementType::Module,
                         file_path: file_path.to_string(),
-                        start_line: 0, // TODO: Get actual line numbers
+                        start_line: 0,
                         end_line: 0,
                     });
                     
@@ -86,9 +89,40 @@ fn process_items(file_path: &str, items: &[Item], elements: &mut Vec<CodeElement
             Item::Impl(impl_item) => {
                 process_impl(file_path, impl_item, elements, relationships);
             },
-            // Other item types can be added here as needed
             _ => {}
         }
+    }
+}
+
+fn process_use_statement(file_path: &str, use_item: &ItemUse, relationships: &mut Vec<Relationship>) {
+    // Extract the imported path and create an import relationship
+    let imported_path = extract_use_path(&use_item.tree);
+    if !imported_path.is_empty() {
+        let source_id = format!("{}::use::{}", file_path, imported_path);
+        let target_id = imported_path;
+        
+        relationships.push(Relationship {
+            source_id,
+            target_id,
+            relationship_type: RelationshipType::Imports,
+        });
+    }
+}
+
+fn extract_use_path(tree: &syn::UseTree) -> String {
+    match tree {
+        syn::UseTree::Path(path) => {
+            format!("{}::{}", path.ident, extract_use_path(&path.tree))
+        },
+        syn::UseTree::Name(name) => name.ident.to_string(),
+        syn::UseTree::Rename(rename) => rename.ident.to_string(),
+        syn::UseTree::Glob(_) => "*".to_string(),
+        syn::UseTree::Group(group) => {
+            group.items.iter()
+                .map(|item| extract_use_path(item))
+                .collect::<Vec<_>>()
+                .join(", ")
+        },
     }
 }
 

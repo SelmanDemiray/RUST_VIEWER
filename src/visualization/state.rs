@@ -80,19 +80,41 @@ impl VisualizationState {
         
         ui.separator();
         
-        ui.add(egui::Slider::new(&mut self.zoom, 0.1..=5.0).text("Zoom"));
-        ui.checkbox(&mut self.show_all_relationships, "Show All Relationships");
-        ui.checkbox(&mut self.show_labels, "Show Labels");
+        // Layout-specific settings
+        if matches!(self.layout_type, LayoutType::ForceDirected) {
+            ui.collapsing("Force Layout Settings", |ui| {
+                // This will be called from the layout module
+                crate::visualization::layout::render_force_settings(ui);
+            });
+            ui.separator();
+        }
+        
+        ui.add(egui::Slider::new(&mut self.zoom, 0.3..=2.5).text("Zoom"));
         
         ui.separator();
         
-        ui.label("Filter:");
+        ui.checkbox(&mut self.show_all_relationships, "Show File Relationships");
+        ui.checkbox(&mut self.show_labels, "Show Element Labels");
+        
+        ui.separator();
+        
+        ui.label("Filter Elements:");
         ui.text_edit_singleline(&mut self.filter_text);
+        
+        ui.separator();
         
         if ui.button("Reset View").clicked() {
             self.zoom = 1.0;
             self.pan_offset = egui::Vec2::ZERO;
             self.selected_element = None;
+            crate::visualization::layout::reset_layout();
         }
+        
+        if ui.button("Center View").clicked() {
+            self.pan_offset = egui::Vec2::ZERO;
+        }
+        
+        ui.separator();
+        ui.label(format!("Animation: {:.0}%", self.animation_progress * 100.0));
     }
 }

@@ -210,45 +210,325 @@ Get-ChildItem -Recurse -Filter "*~" | Remove-Item -Force
 Write-Host "Cleanup complete!" -ForegroundColor Green
 Write-Host "Run 'cargo build' to rebuild the project." -ForegroundColor Cyan
 
-# PowerShell script to clean up build artifacts and temporary files
+# Rust Code Visualizer - Cleanup Script
+# This script cleans up build artifacts and temporary files
 
-Write-Host "Cleaning up Rust project..." -ForegroundColor Green
+Write-Host "Rust Code Visualizer - Cleanup Script" -ForegroundColor Green
+Write-Host "=====================================" -ForegroundColor Green
 
-# Clean Cargo build artifacts
+# Function to remove directory safely
+function Remove-DirectorySafely {
+    param([string]$Path, [string]$Description)
+    
+    if (Test-Path $Path) {
+        try {
+            Remove-Item -Recurse -Force $Path
+            Write-Host "✓ Removed $Description" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "✗ Failed to remove $Description : $($_.Exception.Message)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "- $Description not found (already clean)" -ForegroundColor Gray
+    }
+}
+
+# Function to remove file safely
+function Remove-FileSafely {
+    param([string]$Path, [string]$Description)
+    
+    if (Test-Path $Path) {
+        try {
+            Remove-Item -Force $Path
+            Write-Host "✓ Removed $Description" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "✗ Failed to remove $Description : $($_.Exception.Message)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "- $Description not found (already clean)" -ForegroundColor Gray
+    }
+}
+
+# Function to get directory size
+function Get-DirectorySize {
+    param([string]$Path)
+    
+    if (Test-Path $Path) {
+        $size = (Get-ChildItem -Recurse $Path | Measure-Object -Property Length -Sum).Sum
+        return [math]::Round($size / 1MB, 2)
+    }
+    return 0
+}
+
+# Function to clean build artifacts
+function Clear-BuildArtifacts {
+    Write-Host "Cleaning build artifacts..." -ForegroundColor Yellow
+    
+    $targetSize = Get-DirectorySize "target"
+    if ($targetSize -gt 0) {
+        Write-Host "Target directory size: $targetSize MB" -ForegroundColor Cyan
+    }
+    
+    Remove-DirectorySafely "target" "target directory (build artifacts)"
+    Remove-FileSafely "Cargo.lock" "Cargo.lock (dependency lock file)"
+}
+
+# Function to clean temporary files
+function Clear-TemporaryFiles {
+    Write-Host "Cleaning temporary files..." -ForegroundColor Yellow
+    
+    # Remove common temporary file patterns
+    $tempPatterns = @(
+        "*.tmp",
+        "*.temp",
+        "*~",
+        "*.bak",
+        "*.orig",
+        ".DS_Store",
+        "Thumbs.db"
+    )
+    
+    foreach ($pattern in $tempPatterns) {
+        $files = Get-ChildItem -Recurse -Filter $pattern -File -ErrorAction SilentlyContinue
+        foreach ($file in $files) {
+            Remove-FileSafely $file.FullName "temporary file ($($file.Name))"
+        }
+    }
+}
+
+# Function to clean IDE files
+function Clear-IDEFiles {
+    Write-Host "Cleaning IDE/editor files..." -ForegroundColor Yellow
+    
+    # Visual Studio Code
+    Remove-DirectorySafely ".vscode" ".vscode directory"
+    
+    # IntelliJ/CLion
+    Remove-DirectorySafely ".idea" ".idea directory"
+    
+    # Vim
+    $vimFiles = Get-ChildItem -Recurse -Filter "*.swp" -File -ErrorAction SilentlyContinue
+    foreach ($file in $vimFiles) {
+        Remove-FileSafely $file.FullName "vim swap file ($($file.Name))"
+    }
+    
+    # Emacs
+    $emacsFiles = Get-ChildItem -Recurse -Filter "*~" -File -ErrorAction SilentlyContinue
+    foreach ($file in $emacsFiles) {
+        Remove-FileSafely $file.FullName "emacs backup file ($($file.Name))"
+    }
+}
+
+# Function to clean logs
+function Clear-LogFiles {
+    Write-Host "Cleaning log files..." -ForegroundColor Yellow
+    
+    $logPatterns = @("*.log", "*.out", "*.err")
+    
+    foreach ($pattern in $logPatterns) {
+        $files = Get-ChildItem -Recurse -Filter $pattern -File -ErrorAction SilentlyContinue
+        foreach ($file in $files) {
+            Remove-FileSafely $file.FullName "log file ($($file.Name))"
+        }
+    }
+}
+
+# Function to show disk space saved
+function Show-SpaceSaved {
+    Write-Host "Cleanup complete!" -ForegroundColor Green
+    Write-Host "You may want to run 'cargo clean' if you need to ensure a completely fresh build." -ForegroundColor Cyan
+}
+
+# Function to clean everything
+function Clear-All {
+    Clear-BuildArtifacts
+    Clear-TemporaryFiles
+    Clear-IDEFiles
+    Clear-LogFiles
+    Show-SpaceSaved
+}
+
+# Function to clean only build artifacts
+function Clear-BuildOnly {
+    Clear-BuildArtifacts
+    Show-SpaceSaved
+}
+
+# Function to clean only temporary files
+function Clear-TempOnly {
+    Clear-TemporaryFiles
+    Show-SpaceSaved
+}
+
+# Main execution
+function Main {
+    param([string]$Action = "all")
+    
+    switch ($Action.ToLower()) {
+        "all" {
+            Clear-All
+        }
+        "build" {
+            Clear-BuildOnly
+        }
+        "temp" {
+            Clear-TempOnly
+        }
+        "ide" {
+            Clear-IDEFiles
+            Show-SpaceSaved
+        }
+        "logs" {
+            Clear-LogFiles
+            Show-SpaceSaved
+        }
+        default {
+            Write-Host "Usage: .\cleanup.ps1 [all|build|temp|ide|logs]" -ForegroundColor Cyan
+            Write-Host "  all   - Clean everything (default)"
+            Write-Host "  build - Clean only build artifacts"
+            Write-Host "  temp  - Clean only temporary files"
+            Write-Host "  ide   - Clean only IDE/editor files"
+            Write-Host "  logs  - Clean only log files"
+        }
+    }
+}
+
+# Check if we're in the right directory
+if (-not (Test-Path "Cargo.toml")) {
+    Write-Host "Error: Cargo.toml not found. Please run this script from the project root directory." -ForegroundColor Red
+    exit 1
+}
+
+# Run with the provided parameter or default to "all"
+Main -Action $args[0]
+
+# Cleanup script for Rust Code Visualizer
+# Removes build artifacts and temporary files
+
+Write-Host "Cleaning up Rust Code Visualizer build artifacts..." -ForegroundColor Green
+
+# Remove Cargo build artifacts
 if (Test-Path "target") {
     Write-Host "Removing target directory..." -ForegroundColor Yellow
-    Remove-Item "target" -Recurse -Force
-    Write-Host "Removed target directory" -ForegroundColor Green
+    Remove-Item -Recurse -Force "target"
 }
 
-# Clean Cargo lock file if needed (optional)
-if ($args -contains "--clean-lock") {
-    if (Test-Path "Cargo.lock") {
-        Write-Host "Removing Cargo.lock..." -ForegroundColor Yellow
-        Remove-Item "Cargo.lock" -Force
-        Write-Host "Removed Cargo.lock" -ForegroundColor Green
+# Remove Cargo lock file (optional - uncomment if needed)
+# if (Test-Path "Cargo.lock") {
+#     Write-Host "Removing Cargo.lock..." -ForegroundColor Yellow
+#     Remove-Item -Force "Cargo.lock"
+# }
+
+# Remove any temporary files
+$tempFiles = @("*.tmp", "*.bak", "*~")
+foreach ($pattern in $tempFiles) {
+    $files = Get-ChildItem -Recurse -Force -Name $pattern -ErrorAction SilentlyContinue
+    if ($files) {
+        Write-Host "Removing temporary files matching $pattern..." -ForegroundColor Yellow
+        $files | ForEach-Object { Remove-Item -Force $_ }
     }
 }
 
-# Remove any backup files
-$backupFiles = Get-ChildItem -Recurse -Name "*.rs.bak", "*.toml.bak", "*.orig"
-if ($backupFiles.Count -gt 0) {
-    Write-Host "Removing backup files..." -ForegroundColor Yellow
-    foreach ($file in $backupFiles) {
-        Remove-Item $file -Force
-        Write-Host "Removed $file" -ForegroundColor Green
-    }
-}
-
-# Remove any temporary editor files
-$tempFiles = Get-ChildItem -Recurse -Name "*~", "*.tmp", "*.swp"
-if ($tempFiles.Count -gt 0) {
-    Write-Host "Removing temporary files..." -ForegroundColor Yellow
-    foreach ($file in $tempFiles) {
-        Remove-Item $file -Force
-        Write-Host "Removed $file" -ForegroundColor Green
+# Remove IDE files (optional)
+$ideFiles = @(".vscode", ".idea", "*.swp", "*.swo")
+foreach ($pattern in $ideFiles) {
+    if (Test-Path $pattern) {
+        Write-Host "Removing IDE files: $pattern..." -ForegroundColor Yellow
+        Remove-Item -Recurse -Force $pattern
     }
 }
 
 Write-Host "Cleanup completed!" -ForegroundColor Green
-Write-Host "You can now run: cargo build --release" -ForegroundColor Blue
+Write-Host "You can now run 'cargo build --release' for a fresh build." -ForegroundColor Cyan
+
+# Cleanup script for Rust Code Visualizer project
+
+Write-Host "Rust Code Visualizer - Cleanup Script" -ForegroundColor Green
+Write-Host "====================================" -ForegroundColor Green
+
+# Function to safely remove directory
+function Remove-SafeDirectory {
+    param([string]$Path, [string]$Description)
+    
+    if (Test-Path $Path) {
+        Write-Host "Removing $Description..." -ForegroundColor Yellow
+        try {
+            # Try normal removal first
+            Remove-Item $Path -Recurse -Force -ErrorAction Stop
+            Write-Host "✓ $Description removed successfully" -ForegroundColor Green
+        } catch {
+            Write-Warning "Standard removal failed, trying alternative method..."
+            try {
+                # Alternative method using robocopy to clear directory
+                $tempEmpty = New-TemporaryFile | Split-Path
+                $emptyDir = Join-Path $tempEmpty "empty"
+                New-Item -ItemType Directory -Path $emptyDir -Force | Out-Null
+                robocopy $emptyDir $Path /MIR /NFL /NDL /NJH /NJS /NC /NS /NP
+                Remove-Item $Path -Recurse -Force
+                Remove-Item $emptyDir -Force
+                Write-Host "✓ $Description removed successfully (alternative method)" -ForegroundColor Green
+            } catch {
+                Write-Warning "Could not remove $Description`: $_"
+            }
+        }
+    } else {
+        Write-Host "✓ $Description not found (already clean)" -ForegroundColor Gray
+    }
+}
+
+# Clean build artifacts
+Remove-SafeDirectory "target" "Build target directory"
+
+# Clean Cargo cache (local)
+Remove-SafeDirectory "Cargo.lock" "Cargo lock file"
+
+# Clean temporary files
+$tempFiles = @("*.tmp", "*.temp", "*.bak", "*~")
+foreach ($pattern in $tempFiles) {
+    $files = Get-ChildItem -Path "." -Filter $pattern -Recurse -File
+    if ($files.Count -gt 0) {
+        Write-Host "Removing temporary files ($pattern)..." -ForegroundColor Yellow
+        $files | Remove-Item -Force
+        Write-Host "✓ Removed $($files.Count) temporary files" -ForegroundColor Green
+    }
+}
+
+# Clean IDE/editor files
+$idePatterns = @(".vscode", ".idea", "*.swp", "*.swo")
+foreach ($pattern in $idePatterns) {
+    if ($pattern.StartsWith(".")) {
+        Remove-SafeDirectory $pattern "IDE directory ($pattern)"
+    } else {
+        $files = Get-ChildItem -Path "." -Filter $pattern -Recurse -File
+        if ($files.Count -gt 0) {
+            Write-Host "Removing IDE files ($pattern)..." -ForegroundColor Yellow
+            $files | Remove-Item -Force
+            Write-Host "✓ Removed $($files.Count) IDE files" -ForegroundColor Green
+        }
+    }
+}
+
+# Clean Windows-specific files
+if ($IsWindows -or $env:OS -eq "Windows_NT") {
+    $windowsFiles = @("Thumbs.db", "desktop.ini", "*.lnk")
+    foreach ($pattern in $windowsFiles) {
+        $files = Get-ChildItem -Path "." -Filter $pattern -Recurse -File -Hidden -ErrorAction SilentlyContinue
+        if ($files.Count -gt 0) {
+            Write-Host "Removing Windows files ($pattern)..." -ForegroundColor Yellow
+            $files | Remove-Item -Force
+            Write-Host "✓ Removed $($files.Count) Windows files" -ForegroundColor Green
+        }
+    }
+}
+
+# Report final state
+Write-Host "`nCleanup Summary:" -ForegroundColor Green
+Write-Host "===============" -ForegroundColor Green
+
+$currentSize = Get-ChildItem -Path "." -Recurse -File | Measure-Object -Property Length -Sum
+Write-Host "Project size: $([math]::Round($currentSize.Sum / 1MB, 2)) MB" -ForegroundColor Cyan
+Write-Host "File count: $($currentSize.Count)" -ForegroundColor Cyan
+
+Write-Host "`nCleanup completed successfully!" -ForegroundColor Green
+Write-Host "You can now run: cargo build --release" -ForegroundColor Yellow

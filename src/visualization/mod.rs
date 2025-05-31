@@ -11,70 +11,75 @@ use crate::project::Project;
 
 // Re-export the render function for backward compatibility
 pub fn render_visualization(ui: &mut egui::Ui, project: &Project, state: &mut VisualizationState) {
-    // Set some default values if they're not set
-    if state.zoom == 0.0 {
+    // Reset layout when project changes significantly
+    static mut LAST_PROJECT_HASH: u64 = 0;
+    let current_hash = calculate_project_hash(project);
+    unsafe {
+        if LAST_PROJECT_HASH != current_hash {
+            layout::reset_layout();
+            LAST_PROJECT_HASH = current_hash;
+            state.animation_progress = 0.0;
+        }
+    }
+    
+    // Ensure zoom is reasonable
+    if state.zoom <= 0.0 || state.zoom.is_nan() {
         state.zoom = 1.0;
     }
     
-    // Add a visualization area with panning and zooming
+    // Add a visualization area with better styling
     let frame = egui::Frame::none()
-        .fill(egui::Color32::from_rgb(30, 30, 30));
+        .fill(egui::Color32::from_rgb(20, 25, 30))
+        .inner_margin(egui::style::Margin::same(0.0));
     
     frame.show(ui, |ui| {
-        // Use available space
         let available_rect = ui.available_rect_before_wrap();
         
-        // Update animation if needed
+        // Smoother animation updates
         state.update_animation(ui.ctx());
         
-        // Calculate layout positions
+        // Calculate layout positions with improved stability
+        let view_center = available_rect.center() + state.pan_offset;
         let (file_positions, element_positions) = layout::calculate_positions(
             project,
             &state.layout_type,
             state.zoom,
-            available_rect.center(),
+            view_center,
             state.animation_progress
         );
         
-        // Handle interactions (drag, zoom, etc.)
+        // Handle interactions with improved responsiveness
         let response = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
         
-        // Handle dragging for panning
+        // Smooth panning
         if response.dragged() {
+            let delta = response.drag_delta();
+            state.pan_offset += delta;
             state.dragging = true;
-            if let Some(_pointer_pos) = state.last_pointer_pos {
-                let delta = response.drag_delta();
-                state.pan_offset += delta;
-            }
-            state.last_pointer_pos = Some(response.hover_pos().unwrap_or_default());
         } else {
             state.dragging = false;
-            state.last_pointer_pos = None;
         }
         
-        // Handle zooming with scroll
+        // Improved zooming
         if response.hovered() {
             ui.input(|i| {
                 let scroll_delta = i.scroll_delta.y;
-                if scroll_delta != 0.0 {
+                if scroll_delta.abs() > 0.1 {
                     let old_zoom = state.zoom;
-                    state.zoom *= 1.0 + scroll_delta * 0.001;
-                    state.zoom = state.zoom.clamp(0.1, 5.0);
+                    let zoom_factor = 1.0 + scroll_delta * 0.001;
+                    state.zoom = (state.zoom * zoom_factor).clamp(0.3, 2.5);
                     
-                    // Adjust pan to keep the point under cursor stationary
+                    // Zoom towards mouse position
                     if let Some(mouse_pos) = i.pointer.hover_pos() {
-                        let zoom_center = mouse_pos;
-                        let zoom_diff = state.zoom / old_zoom;
-                        // Convert to Vec2 operations to avoid type mismatch
-                        let center_to_mouse = zoom_center - available_rect.center();
-                        let offset_delta = center_to_mouse - center_to_mouse * zoom_diff;
-                        state.pan_offset += offset_delta;
+                        let zoom_center = mouse_pos - available_rect.center();
+                        let zoom_change = state.zoom / old_zoom - 1.0;
+                        state.pan_offset -= zoom_center * zoom_change * 0.5;
                     }
                 }
             });
         }
         
-        // First do operations that need mutable ui
+        // Draw components in proper order
         components::elements::draw(
             ui,
             project,
@@ -83,10 +88,8 @@ pub fn render_visualization(ui: &mut egui::Ui, project: &Project, state: &mut Vi
             &response
         );
         
-        // Then get painter for immutable operations
         let painter = ui.painter();
         
-        // Draw relationships
         components::relationships::draw_relationships(
             project,
             painter,
@@ -95,7 +98,6 @@ pub fn render_visualization(ui: &mut egui::Ui, project: &Project, state: &mut Vi
             state.show_all_relationships
         );
         
-        // Draw minimap
         components::minimap::draw_minimap(
             ui,
             available_rect,
@@ -104,9 +106,69 @@ pub fn render_visualization(ui: &mut egui::Ui, project: &Project, state: &mut Vi
             state
         );
         
-        // Draw status bar
         components::status_bar::draw_status(ui, project, state);
+        
+        // Improved empty state
+        if project.elements.is_empty() {
+            draw_improved_empty_state(ui, available_rect);
+        }
     });
+}
+
+fn calculate_project_hash(project: &Project) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    project.files.len().hash(&mut hasher);
+    project.elements.len().hash(&mut hasher);
+    project.relationships.len().hash(&mut hasher);
+    hasher.finish()
+}
+
+fn draw_improved_empty_state(ui: &mut egui::Ui, rect: egui::Rect) {
+    let painter = ui.painter();
+    
+    // Subtle overlay
+    painter.rect_filled(
+        rect,
+        0.0,
+        egui::Color32::from_rgba_unmultiplied(0, 0, 0, 50)
+    );
+    
+    // Main message
+    let center = rect.center();
+    painter.text(
+        center + egui::vec2(0.0, -20.0),
+        egui::Align2::CENTER_CENTER,
+        "Welcome to Rust Code Visualizer",
+        egui::FontId::proportional(24.0),
+        egui::Color32::from_gray(220)
+    );
+    
+    painter.text(
+        center + egui::vec2(0.0, 10.0),
+        egui::Align2::CENTER_CENTER,
+        "Click File → Open Project to visualize your Rust code",
+        egui::FontId::proportional(16.0),
+        egui::Color32::from_gray(180)
+    );
+    
+    // Decorative elements
+    for i in 0..6 {
+        let angle = (i as f32 / 6.0) * std::f32::consts::TAU;
+        let radius = 100.0;
+        let pos = center + egui::vec2(
+            radius * angle.cos(),
+            radius * angle.sin()
+        );
+        
+        painter.circle_filled(
+            pos,
+            8.0,
+            egui::Color32::from_rgba_unmultiplied(100, 150, 200, 100)
+        );
+    }
 }
 
 #[allow(dead_code)]
