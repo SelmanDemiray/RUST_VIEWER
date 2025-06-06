@@ -1,8 +1,37 @@
+// UI components and utilities
+pub mod components;
+
+// Fix unused import warning by removing it
 pub mod top_panel;
 pub mod side_panel;
 pub mod central_panel;
+pub mod main_ui;
 
 use eframe::egui;
+
+pub struct UI {
+    // UI state fields will go here
+}
+
+impl UI {
+    pub fn new() -> Self {
+        Self {
+            // Initialize UI state
+        }
+    }
+
+    pub fn update(&mut self, ctx: &egui::Context) {
+        // Main UI update logic
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.heading("Rust Code Visualizer");
+            ui.label("Welcome to the Rust Code Visualizer!");
+            
+            if ui.button("Load Project").clicked() {
+                // TODO: Implement project loading
+            }
+        });
+    }
+}
 
 // Helper function to create consistent section headings
 #[allow(dead_code)]
@@ -78,4 +107,27 @@ pub fn display_file_path(ui: &mut egui::Ui, path: &str, max_width: f32) -> egui:
     }
     
     ui.label(display_path).on_hover_text(path)
+}
+
+pub fn show_tooltip(ui: &mut egui::Ui, text: &str, hover_pos: egui::Pos2) {
+    egui::Area::new("tooltip")
+        .order(egui::Order::Tooltip)
+        .fixed_pos(hover_pos + egui::vec2(10.0, 10.0))
+        .show(ui.ctx(), |ui| {
+            egui::Frame::popup(ui.style())
+                .inner_margin(egui::style::Margin::same(8.0))
+                .show(ui, |ui| {
+                    ui.label(text);
+                });
+        });
+}
+
+pub fn draw_rounded_rect(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    rounding: f32,
+    fill: egui::Color32,
+    stroke: egui::Stroke,
+) {
+    painter.rect(rect, rounding, fill, stroke);
 }

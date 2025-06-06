@@ -1,3 +1,5 @@
+use crate::parser::types::{CodeElement, RelationshipType};
+use crate::project::ProjectModel;
 use eframe::egui;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -9,24 +11,55 @@ pub enum LayoutType {
     Hierarchical,
 }
 
+#[derive(Debug, Clone)]
+pub struct Node {
+    pub id: String,
+    pub element: CodeElement,
+    pub position: egui::Pos2,
+    pub velocity: egui::Vec2,
+    pub size: egui::Vec2,
+    pub color: egui::Color32,
+}
+
+#[derive(Debug, Clone)]
+pub struct Edge {
+    pub source: String,
+    pub target: String,
+    pub relationship: Relationship,
+}
+
+#[derive(Debug, Clone)]
+pub struct Relationship {
+    pub relationship_type: RelationshipType,
+    pub strength: f32,
+}
+
 impl Default for LayoutType {
     fn default() -> Self {
         LayoutType::ForceDirected
     }
 }
 
-#[derive(Clone)]
+impl Default for Relationship {
+    fn default() -> Self {
+        Self {
+            relationship_type: RelationshipType::Contains,
+            strength: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct VisualizationState {
+    pub nodes: Vec<Node>,
+    pub edges: Vec<Edge>,
+    pub layout_type: LayoutType,
+    pub show_relationships: bool,
+    pub show_functions: bool,
+    pub show_structs: bool,
     pub zoom: f32,
     pub pan_offset: egui::Vec2,
-    pub layout_type: LayoutType,
-    pub selected_element: Option<String>,
-    pub show_all_relationships: bool,
-    pub animation_progress: f32,
-    pub dragging: bool,
-    pub last_pointer_pos: Option<egui::Pos2>,
-    pub filter_text: String,
-    pub show_labels: bool,
+    pub selected_element: Option<String>, // Add missing field
 }
 
 impl Default for VisualizationState {
@@ -38,83 +71,65 @@ impl Default for VisualizationState {
 impl VisualizationState {
     pub fn new() -> Self {
         Self {
+            nodes: Vec::new(),
+            edges: Vec::new(),
+            layout_type: LayoutType::default(),
+            show_relationships: true,
+            show_functions: true,
+            show_structs: true,
             zoom: 1.0,
             pan_offset: egui::Vec2::ZERO,
-            layout_type: LayoutType::default(),
-            selected_element: None,
-            show_all_relationships: false,
-            animation_progress: 0.0,
-            dragging: false,
-            last_pointer_pos: None,
-            filter_text: String::new(),
-            show_labels: true,
+            selected_element: None, // Initialize new field
         }
     }
     
-    pub fn should_draw_labels(&self) -> bool {
-        self.show_labels
-    }
-    
-    pub fn update_animation(&mut self, _ctx: &egui::Context) {
-        // Simple animation progress
-        self.animation_progress += 0.016; // ~60fps
-        if self.animation_progress > 1.0 {
-            self.animation_progress = 1.0;
-        }
-    }
-    
-    pub fn ui_controls(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Visualization Controls");
-        ui.separator();
+    pub fn update_from_project(&mut self, project: &ProjectModel) {
+        self.nodes.clear();
+        self.edges.clear();
         
-        ui.label("Layout Type:");
-        egui::ComboBox::from_label("Layout")
-            .selected_text(format!("{:?}", self.layout_type))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.layout_type, LayoutType::ForceDirected, "Force Directed");
-                ui.selectable_value(&mut self.layout_type, LayoutType::Grid, "Grid");
-                ui.selectable_value(&mut self.layout_type, LayoutType::Circular, "Circular");
-                ui.selectable_value(&mut self.layout_type, LayoutType::Tree, "Tree");
-                ui.selectable_value(&mut self.layout_type, LayoutType::Hierarchical, "Hierarchical");
+        // Convert project elements to visualization nodes
+        for element in &project.elements {
+            self.nodes.push(Node {
+                id: element.id.clone(),
+                element: crate::parser::types::CodeElement {
+                    id: element.id.clone(),
+                    name: element.name.clone(),
+                    element_type: element.element_type.clone(),
+                    file_path: element.file_path.clone(),
+                    start_line: 0,
+                    end_line: 0,
+                },
+                position: egui::Pos2::ZERO,
+                velocity: egui::Vec2::ZERO,
+                size: egui::Vec2::new(100.0, 50.0),
+                color: match element.element_type {
+                    crate::parser::types::ElementType::Function => egui::Color32::LIGHT_BLUE,
+                    crate::parser::types::ElementType::Struct => egui::Color32::LIGHT_GREEN,
+                    crate::parser::types::ElementType::Enum => egui::Color32::LIGHT_YELLOW,
+                    _ => egui::Color32::LIGHT_GRAY,
+                },
             });
+        }
         
-        ui.separator();
-        
-        // Layout-specific settings
-        if matches!(self.layout_type, LayoutType::ForceDirected) {
-            ui.collapsing("Force Layout Settings", |ui| {
-                // This will be called from the layout module
-                crate::visualization::layout::render_force_settings(ui);
+        // Convert project relationships to visualization edges
+        for relationship in &project.relationships {
+            self.edges.push(Edge {
+                source: relationship.source_id.clone(),
+                target: relationship.target_id.clone(),
+                relationship: Relationship {
+                    relationship_type: relationship.relationship_type.clone(),
+                    strength: 1.0,
+                },
             });
-            ui.separator();
         }
-        
-        ui.add(egui::Slider::new(&mut self.zoom, 0.3..=2.5).text("Zoom"));
-        
-        ui.separator();
-        
-        ui.checkbox(&mut self.show_all_relationships, "Show File Relationships");
-        ui.checkbox(&mut self.show_labels, "Show Element Labels");
-        
-        ui.separator();
-        
-        ui.label("Filter Elements:");
-        ui.text_edit_singleline(&mut self.filter_text);
-        
-        ui.separator();
-        
-        if ui.button("Reset View").clicked() {
-            self.zoom = 1.0;
-            self.pan_offset = egui::Vec2::ZERO;
-            self.selected_element = None;
-            crate::visualization::layout::reset_layout();
-        }
-        
-        if ui.button("Center View").clicked() {
-            self.pan_offset = egui::Vec2::ZERO;
-        }
-        
-        ui.separator();
-        ui.label(format!("Animation: {:.0}%", self.animation_progress * 100.0));
+    }
+    
+    pub fn update(&mut self, _dt: f32) {
+        // Update visualization state (animations, layout calculations, etc.)
+    }
+    
+    // Add the missing render method
+    pub fn render(&mut self, ui: &mut egui::Ui) {
+        crate::visualization::renderer::render_visualization(ui, self);
     }
 }

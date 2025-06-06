@@ -1,25 +1,33 @@
-#[derive(Debug, Clone)]
-#[allow(dead_code)]  // Allow unused variants for future development
+#[derive(Debug, Clone, PartialEq)]
 pub enum ElementType {
     Function,
-    Module,
     Struct,
     Enum,
     Trait,
+    Module,
     Impl,
 }
 
-#[derive(Debug, Clone)]
-#[allow(dead_code)]  // Allow unused variants for future development
+#[derive(Debug, Clone, PartialEq)]
 pub enum RelationshipType {
-    Calls,      // Function calls another function
-    Imports,    // Module imports something from another module
-    Implements, // Type implements a trait
-    Contains,   // Parent-child relationship (e.g., module contains items)
-    Extends,    // Type extends/inherits from another (for trait inheritance)
-    Uses,       // Function/method uses a type as parameter or return type
-    References, // Code references a type without direct usage
-    DependsOn,  // General dependency between code elements
-    AssociatedWith, // Items with association (like methods and their parent type)
-    Instantiates,   // When code creates an instance of a type
+    Imports,
+    Uses,
+    Extends,
+    Implements,
+    Contains,
+    Calls,
+    Instantiates,
+    References,
+    DependsOn,
+    AssociatedWith,
+}
+
+#[derive(Debug, Clone)]
+pub struct CodeElement {
+    pub id: String,
+    pub name: String,
+    pub element_type: ElementType,
+    pub file_path: String,
+    pub start_line: usize,
+    pub end_line: usize,
 }

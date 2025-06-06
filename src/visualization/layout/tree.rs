@@ -205,24 +205,23 @@ pub fn calculate(
             let elements_in_file = project.elements
                 .iter()
                 .filter(|e| e.file_path == element.file_path)
-                .count();
+                .collect::<Vec<_>>();
             
-            let element_index = project.elements
+            let element_index = elements_in_file
                 .iter()
-                .filter(|e| e.file_path == element.file_path)
                 .position(|e| e.id == element.id)
                 .unwrap_or(0);
             
-            // Arrange elements in a row below their file
-            let total_width = 150.0 * zoom * elements_in_file as f32;
-            let element_spacing = total_width / elements_in_file.max(1) as f32;
-            let x_offset = -total_width / 2.0 + element_spacing / 2.0 + element_index as f32 * element_spacing;
-            let y_offset = 60.0 * zoom;
+            // Arrange elements in a circle around the file
+            let angle = 2.0 * std::f32::consts::PI * element_index as f32 / elements_in_file.len() as f32;
+            let radius = 30.0 * zoom;
             
-            element_positions.insert(
-                element.id.clone(), 
-                *file_pos + egui::vec2(x_offset, y_offset)
+            let element_pos = egui::pos2(
+                file_pos.x + radius * angle.cos(),
+                file_pos.y + radius * angle.sin()
             );
+            
+            element_positions.insert(element.id.clone(), element_pos);
         }
     }
     

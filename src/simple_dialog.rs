@@ -160,3 +160,38 @@ impl SimpleFileDialog {
         result
     }
 }
+
+pub struct SimpleDialog {
+    pub open: bool,
+    pub title: String,
+    pub message: String,
+}
+
+impl SimpleDialog {
+    pub fn new(title: &str, message: &str) -> Self {
+        Self {
+            open: true,
+            title: title.to_string(),
+            message: message.to_string(),
+        }
+    }
+
+    pub fn show(&mut self, ctx: &egui::Context) {
+        if self.open {
+            let mut should_close = false;
+            egui::Window::new(&self.title)
+                .open(&mut self.open)
+                .resizable(false)
+                .show(ctx, |ui| {
+                    ui.label(&self.message);
+                    if ui.button("OK").clicked() {
+                        should_close = true;
+                    }
+                });
+            
+            if should_close {
+                self.open = false;
+            }
+        }
+    }
+}

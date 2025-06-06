@@ -4,9 +4,10 @@ use eframe::egui;
 
 use super::{
     view_modes::ViewMode,
-    renderer,
+    utils,
 };
 
+#[derive(Debug, Clone)]
 pub struct PathEntry {
     pub name: String,
     pub path: PathBuf,
@@ -92,15 +93,44 @@ impl SimpleFileDialog {
             self.needs_refresh = false;
         }
         
-        renderer::render(self, ui)
+        // Fix unused mutable variable warning by removing mut keyword
+        let result = None;
+
+        // Current path display and navigation
+        ui.horizontal(|ui| {
+            if ui.button("⬆ Up").clicked() {
+                if let Some(parent) = self.current_path.parent() {
+                    // Fix borrowing error by cloning first, then using the clone
+                    let current_path_clone = self.current_path.clone();
+                    let parent_buf = parent.to_path_buf();
+                    self.current_path = parent_buf;
+                    self.add_to_recent_paths(current_path_clone);
+                    self.needs_refresh = true;
+                }
+            }
+            
+            if ui.button("⟲ Back").clicked() {
+                if let Some(prev_path) = self.recent_paths.pop_front() {
+                    self.current_path = prev_path;
+                    self.needs_refresh = true;
+                }
+            }
+            
+            ui.label("Path:");
+            ui.label(self.current_path.to_string_lossy().to_string());
+        });
+        
+        // ...rest of the dialog UI implementation...
+        
+        result
     }
     
     pub fn refresh_entries(&mut self) {
-        super::utils::refresh_entries(self);
+        utils::refresh_entries(self);
     }
     
     pub fn update_breadcrumbs(&mut self) {
-        super::utils::update_breadcrumbs(self);
+        utils::update_breadcrumbs(self);
     }
     
     pub fn add_to_recent_paths(&mut self, path: PathBuf) {

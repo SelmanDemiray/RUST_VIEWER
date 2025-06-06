@@ -1,126 +1,101 @@
-use crate::{
-    simple_dialog::SimpleFileDialog,
-    project::Project,
-    visualization::VisualizationState,
-};
+use crate::project::ProjectModel;
+use crate::visualization::VisualizationState;
+use crate::editor::Editor;
+use crate::dialog::FileDialog;
 
-use eframe::egui;
-use super::view_mode::ViewMode;
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ViewMode {
+    Visualization,
+    Editor,
+}
 
 pub struct App {
-    pub project: Project,
-    pub selected_file: Option<String>,
+    pub project: Option<ProjectModel>,
+    pub visualization: VisualizationState,
+    pub editor: Editor,
     pub view_mode: ViewMode,
-    pub file_dialog: SimpleFileDialog,
-    pub show_dialog: bool,
-    pub visualization_state: VisualizationState,
+    pub show_file_dialog: bool,
+    pub file_dialog: Option<FileDialog>,
+    pub selected_file: Option<String>,
+    pub status_message: String,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
-            project: Project::default(),
-            selected_file: None,
+            project: None,
+            visualization: VisualizationState::new(),
+            editor: Editor::new(),
             view_mode: ViewMode::Visualization,
-            file_dialog: SimpleFileDialog::default(),
-            show_dialog: false,
-            visualization_state: VisualizationState::new(),
+            show_file_dialog: false,
+            file_dialog: None,
+            selected_file: None,
+            status_message: "Ready".to_string(),
         }
-    }
-}
-
-impl eframe::App for App {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Top panel
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Open Project").clicked() {
-                        self.show_dialog = true;
-                        ui.close_menu();
-                    }
-                });
-                
-                ui.separator();
-                
-                if ui.selectable_label(self.view_mode == ViewMode::Visualization, "Visualization").clicked() {
-                    self.view_mode = ViewMode::Visualization;
-                }
-                
-                if ui.selectable_label(self.view_mode == ViewMode::Editor, "Editor").clicked() {
-                    self.view_mode = ViewMode::Editor;
-                }
-            });
-        });
-        
-        // File dialog
-        if self.show_dialog {
-            egui::Window::new("Select Project Directory")
-                .collapsible(false)
-                .resizable(true)
-                .default_width(500.0)
-                .default_height(400.0)
-                .show(ctx, |ui| {
-                    if let Some(path) = self.file_dialog.show(ui) {
-                        if path.is_empty() {
-                            // User cancelled
-                            self.show_dialog = false;
-                        } else {
-                            // User selected a folder
-                            self.show_dialog = false;
-                            self.load_project(path);
-                        }
-                    }
-                });
-        }
-        
-        // Side panel
-        egui::SidePanel::left("file_panel").show(ctx, |ui| {
-            ui.heading("Project Files");
-            ui.separator();
-            
-            if self.project.files.is_empty() {
-                ui.label("No project loaded.");
-            } else {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for file in &self.project.files {
-                        let is_selected = self.selected_file.as_ref() == Some(file);
-                        if ui.selectable_label(is_selected, file).clicked() {
-                            self.selected_file = Some(file.clone());
-                        }
-                    }
-                });
-            }
-        });
-        
-        // Central panel
-        egui::CentralPanel::default().show(ctx, |ui| {
-            match self.view_mode {
-                ViewMode::Visualization => {
-                    crate::visualization::render_visualization(ui, &self.project, &mut self.visualization_state);
-                },
-                ViewMode::Editor => {
-                    if let Some(file) = &self.selected_file {
-                        if let Some(content) = self.project.get_file_content(file) {
-                            crate::editor::render_editor(ui, file, content);
-                        } else {
-                            ui.label("File content not available");
-                        }
-                    } else {
-                        ui.centered_and_justified(|ui| {
-                            ui.label("Select a file to view its content");
-                        });
-                    }
-                }
-            }
-        });
     }
 }
 
 impl App {
-    fn load_project(&mut self, path: String) {
-        self.project.load_project(&path);
-        self.visualization_state = VisualizationState::new();
-        self.selected_file = self.project.files.first().cloned();
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+        Self::default()
+    }
+}
+
+impl eframe::App for App {
+    fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
+        // Handle file dialog
+        if self.show_file_dialog {
+            // Create a temporary variable to avoid borrowing conflicts
+            let dialog_result = if let Some(ref mut dialog) = self.file_dialog {
+                dialog.show(ctx)
+            } else {
+                self.file_dialog = Some(crate::dialog::FileDialog::new());
+                None
+            };
+            
+            // Process the result after the borrow is complete
+            if let Some(path) = dialog_result {
+                if path.is_empty() {
+                    // User cancelled
+                    self.show_file_dialog = false;
+                    self.file_dialog = None;
+                } else {
+                    // User selected a folder
+                    match crate::project::loader::load_project_from_path(&path) {
+                        Ok(project) => {
+                            self.project = Some(project);
+                            self.status_message = format!("Loaded project from: {}", path);
+                        },
+                        Err(e) => {
+                            self.status_message = format!("Error loading project: {}", e);
+                        }
+                    }
+                    self.show_file_dialog = false;
+                    self.file_dialog = None;
+                }
+            }
+            
+            // Check if dialog should be closed
+            if let Some(ref dialog) = self.file_dialog {
+                if !dialog.is_open() {
+                    self.show_file_dialog = false;
+                    self.file_dialog = None;
+                }
+            }
+        }
+        
+        // Render UI
+        crate::ui::top_panel::render(self, ctx);
+        
+        eframe::egui::SidePanel::left("side_panel")
+            .resizable(true)
+            .default_width(200.0)
+            .show(ctx, |ui| {
+                crate::ui::side_panel::render(self, ui);
+            });
+        
+        eframe::egui::CentralPanel::default().show(ctx, |ui| {
+            crate::ui::central_panel::render(self, ui);
+        });
     }
 }

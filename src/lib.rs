@@ -1,16 +1,15 @@
-pub mod project;
-pub mod parser;
-pub mod dialog;
-pub mod simple_dialog;
-pub mod visualization;
-pub mod ui;
 pub mod app;
+pub mod dialog;
 pub mod editor;
+pub mod parser;
+pub mod project;
+pub mod simple_dialog;
+pub mod ui;
+pub mod visualization;
 
 // Re-export commonly used types
-pub use project::Project;
-pub use visualization::VisualizationState;
-pub use app::App;
+pub use app::state::App;
+pub use app::state::ViewMode;
 
 #[derive(Debug, Clone)]
 pub struct LayoutSettings {

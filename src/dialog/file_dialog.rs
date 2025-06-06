@@ -45,3 +45,14 @@ impl FileDialog {
         self.is_open
     }
 }
+
+// Placeholder for native file dialogs
+// Currently using the simple_dialog module instead
+
+pub struct NativeFileDialog;
+
+impl NativeFileDialog {
+    pub fn new() -> Self {
+        Self
+    }
+}

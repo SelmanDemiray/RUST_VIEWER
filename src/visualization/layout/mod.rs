@@ -12,6 +12,29 @@ use crate::{
 
 use force_directed::ForceDirectedLayout;
 
+// Define missing types for layout calculations
+#[derive(Debug, Clone)]
+pub struct LayoutNode {
+    pub id: String,
+    pub position: egui::Pos2,
+    pub size: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct LayoutEdge {
+    pub source: String,
+    pub target: String,
+    pub edge_type: EdgeType,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum EdgeType {
+    Contains,
+    Uses,
+    Implements,
+    Calls,
+}
+
 // Global layout state
 static LAYOUT_STATE: Mutex<Option<LayoutState>> = Mutex::new(None);
 
